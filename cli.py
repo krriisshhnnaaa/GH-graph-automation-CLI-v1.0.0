@@ -1,4 +1,5 @@
 import argparse
+#the next time i write arprase instead of argparse, i will fucking kill myself
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,3 +54,4 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+#cli.py is done for v1 , hopefully...probably......idk but i'd avoid changig it for now
