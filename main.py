@@ -2,12 +2,11 @@
 """
 GitHubContributionGraph CLI (main.py)
 Automates GitHub activity graphs by scheduling and gradually pushing repository chunks.
-Follows the specification outlined in README.md.
+Follows the specification outlined in README.md and modular architecture.
 """
 
-import sys
 import os
-import argparse
+import sys
 from datetime import datetime
 from typing import Optional
 
@@ -16,7 +15,6 @@ import git
 import splitter
 import scheduler
 from cli import parse_args
-
 
 
 def display_preview(
@@ -46,8 +44,6 @@ def display_preview(
     print("=" * 55 + "\n")
 
 
-
-
 def confirm_start() -> bool:
     """Prompts the user for confirmation to proceed."""
     try:
@@ -72,24 +68,26 @@ def main():
         start_time=args.start_time
     )
 
-    repo_path = cfg.repository_path or os.getcwd()
+    # Config layer guarantees a fully resolved, existing directory string
+    source_repo = cfg.repository_path
+    working_repo = cfg.repository_path  # Conceptual separation: source to read vs working to reconstruct
 
-    if not git.is_git_repository(repo_path):
-        print(f"Error: '{repo_path}' is not a valid git repository.", file=sys.stderr)
+    if not git.is_git_repository(working_repo):
+        print(f"Error: '{working_repo}' is not a valid git repository.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Initialized repository target: {repo_path}")
+    print(f"Initialized repository target: {working_repo}")
 
     # ─────────────────────────────────────
-    # 2. READ REPOSITORY
+    # 2. READ REPOSITORY (Source)
     # ─────────────────────────────────────
     print("Reading repository and preparing chunks...")
-    files = splitter.get_repository_files(repo_path)
+    files = splitter.get_repository_files(source_repo)
     if not files:
         print("Error: No eligible files found in repository to chunk.", file=sys.stderr)
         sys.exit(1)
 
-    chunks, total_lines = splitter.divide_into_chunks(repo_path, files, cfg.chunk_size)
+    chunks, total_lines = splitter.divide_into_chunks(source_repo, files, cfg.chunk_size)
     total_chunks = len(chunks)
 
     if total_chunks == 0:
@@ -114,7 +112,7 @@ def main():
     # 4. PREVIEW
     # ─────────────────────────────────────
     display_preview(
-        repo_path=repo_path,
+        repo_path=working_repo,
         total_files=len(files),
         total_lines=total_lines,
         total_chunks=total_chunks,
@@ -124,30 +122,38 @@ def main():
         last_commit_time=last_commit_time
     )
 
-    if not args.assume_yes:
+    # In dry-run mode, simulate without asking for confirmation
+    if not args.assume_yes and not args.dry_run:
         if not confirm_start():
             print("Execution aborted.")
             sys.exit(0)
 
     # ─────────────────────────────────────
-    # 5. EXECUTE
+    # 5. EXECUTE (Working Repository)
     # ─────────────────────────────────────
     print("\nStarting execution plan...\n")
     for idx, item in enumerate(commit_plan, 1):
-        next_time = commit_plan[idx].scheduled_time.strftime("%Y-%m-%d %H:%M:%S") if idx < len(commit_plan) else "None (Done)"
+        next_time = (
+            commit_plan[idx].scheduled_time.strftime("%Y-%m-%d %H:%M:%S")
+            if idx < len(commit_plan)
+            else "None (Done)"
+        )
 
         if not args.dry_run:
             # Wait until the assigned scheduled time
             scheduler.wait_until(item.scheduled_time)
 
-            # Apply chunk to the repository
-            splitter.apply_chunk(repo_path, item.chunk)
+            # Apply chunk to the working repository
+            splitter.apply_chunk(working_repo, item.chunk)
 
             # Stage, commit, and push
-            git.add(repo_path, item.chunk.file_path)
-            message = item.commit_message or f"feat: update {os.path.basename(item.chunk.file_path)} (part {item.chunk.part_index}/{item.chunk.total_parts})"
-            git.commit(repo_path, message)
-            git.push(repo_path)
+            git.add(working_repo, item.chunk.file_path)
+            message = (
+                item.commit_message
+                or f"feat: update {os.path.basename(item.chunk.file_path)} (part {item.chunk.part_index}/{item.chunk.total_parts})"
+            )
+            git.commit(working_repo, message)
+            git.push(working_repo)
         else:
             print(f"[DRY-RUN] Simulating commit at {item.scheduled_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
