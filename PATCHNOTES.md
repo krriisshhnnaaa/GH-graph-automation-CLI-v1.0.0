@@ -28,6 +28,17 @@ git staging, commiting and pushing
 -files that cannot be decoded as UTF-8 are skipped :)
 -scheduler currently operatres using the system's local time, and doesn't provide explicit timezone config, shouldnt be a problem if you're an Indian. lol imagine not being Indian
 
+
+
+
+
+
+
+
+
+
+
+
 ##Architecture 
 
 This project is devided into focused modules : 
