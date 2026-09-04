@@ -15,6 +15,7 @@ import config
 import git
 import splitter
 import scheduler
+from cli import parse_args
 
 
 
