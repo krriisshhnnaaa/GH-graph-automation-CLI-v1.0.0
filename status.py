@@ -77,3 +77,4 @@ if __name__ == "__main__":
     display_status(test_status)
 '''
 # It worked magically on 1000th try and don't ask me how it worked, I don't know either.
+#reply : lol, happens, 
